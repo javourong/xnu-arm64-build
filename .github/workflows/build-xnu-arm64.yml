@@ -28,6 +28,10 @@ jobs:
           sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A"
           sudo rm -rf "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders"
           sudo ln -sfn "$PRIV" "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders"
+          sudo mkdir -p "$PRIV/CoreEntitlements/V2" "$SDKROOT/usr/local/include/AppleFeatures"
+          printf '#ifndef _COREENTITLEMENTS_V2_KERNEL_H_\n#define _COREENTITLEMENTS_V2_KERNEL_H_\n#include <CoreEntitlements/V2/API.h>\n#endif\n' | sudo tee "$PRIV/CoreEntitlements/V2/Kernel.h" >/dev/null
+          printf '#ifndef _APPLEFEATURES_H_\n#define _APPLEFEATURES_H_\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/AppleFeatures.h" >/dev/null
+          printf '#ifndef _APPLEFEATURES_APPLEFEATURES_H_\n#define _APPLEFEATURES_APPLEFEATURES_H_\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/AppleFeatures/AppleFeatures.h" >/dev/null
       - name: Clone XNU 12377.1.9
         run: git clone --depth 1 --branch xnu-12377.1.9 https://github.com/apple-oss-distributions/xnu.git xnu
       - name: Patch SDK availability.pl
