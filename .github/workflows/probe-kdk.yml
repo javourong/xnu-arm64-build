@@ -16,6 +16,8 @@ jobs:
           echo "== KDK tree =="
           find "$KDK" -maxdepth 5 -type d | head -40
           echo "== headers =="
-          find "$KDK" -name 'boot_args_abi.h' -o -name 'API.h' | head -20
+          find "$KDK" -name 'boot_args_abi.h' -o -name 'Kernel.h' -o -name 'AppleFeatures*' | head -30
+          echo "== top-level PRIV =="
+          ls "$KDK/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders" | head -40
           echo "== SDK local include =="
           ls -la "$(xcrun --show-sdk-path)/usr/local/include" | head -30
