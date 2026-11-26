@@ -1,0 +1,13 @@
+name: probe-kdk
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: macos-15-intel
+    steps:
+      - name: Fetch and mount KDK
+        run: |
+          set -eux
+          curl -L --retry 3 -o /tmp/kdk.dmg https://github.com/dortania/KdkSupportPkg/releases/download/24F74/Kernel_Debug_Kit_15.5_build_24F74.dmg
+          hdiutil attach /tmp/kdk.dmg -mountpoint /Volumes/KDK -nobrowse
+          find /Volumes/KDK -name 'boot_args_abi.h' -o -path '*TrustCache/API.h' | head -20
+          ls /Volumes/KDK
