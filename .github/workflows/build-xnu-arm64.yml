@@ -9,8 +9,21 @@ jobs:
         run: |
           xcodebuild -version
           xcrun --show-sdk-path
-      - name: Clone XNU
-        run: git clone --depth 1 https://github.com/apple-oss-distributions/xnu.git xnu
+          sw_vers
+      - name: Install Apple KDK 15.5 (24F74)
+        run: |
+          set -eux
+          curl -L --retry 3 -o /tmp/kdk.dmg \
+            https://github.com/dortania/KdkSupportPkg/releases/download/24F74/Kernel_Debug_Kit_15.5_build_24F74.dmg
+          hdiutil attach /tmp/kdk.dmg -mountpoint /Volumes/KDK -nobrowse
+          ls -la /Volumes/KDK
+          sudo installer -pkg /Volumes/KDK/*.pkg -target /
+          hdiutil detach /Volumes/KDK
+          ls -la /Library/Developer/KDKs
+          KDK=$(ls -d /Library/Developer/KDKs/*.kdk | head -1)
+          echo "KDKROOT=$KDK" >> "$GITHUB_ENV"
+      - name: Clone XNU 12377.1.9
+        run: git clone --depth 1 --branch xnu-12377.1.9 https://github.com/apple-oss-distributions/xnu.git xnu
       - name: Patch SDK availability.pl
         run: |
           SDKROOT=$(xcrun --show-sdk-path)
@@ -26,26 +39,12 @@ jobs:
           esac
           PL
           sudo chmod 755 "$SDKROOT/usr/local/libexec/availability.pl"
-          sudo mkdir -p "$SDKROOT/usr/local/include/kernel"
-          sudo mkdir -p "$SDKROOT/usr/local/include/iBoot"
-          printf '#ifndef _IBOOT_BOOT_ARGS_ABI_H_\n#define _IBOOT_BOOT_ARGS_ABI_H_\n#define IBOOT_MAX_ENV_VAR_DATA_SIZE 1024\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/iBoot/boot_args_abi.h" >/dev/null
-          sudo mkdir -p "$SDKROOT/usr/local/include"
-          sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/AppleFeatures"
-          sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/platform"
-
-      - name: Probe KDK
-        run: |
-          echo "== KDK dirs =="
-          ls -la /Library/Developer/KDKs 2>/dev/null || true
-          echo "== boot_args_abi.h =="
-          find /Library/Developer /Applications/Xcode_16.4.app -name boot_args_abi.h 2>/dev/null | head -10
-
       - name: Build ARM64 RELEASE
         run: |
           cd xnu
-          RC_DARWIN_KERNEL_VERSION=12377.1.9 \
-            make -j"$(sysctl -n hw.ncpu)" \
-            ARCH_CONFIGS=ARM64 KERNEL_CONFIGS=RELEASE BUILD_LTO=0
+          make -j"$(sysctl -n hw.ncpu)" \
+            ARCH_CONFIGS=ARM64 KERNEL_CONFIGS=RELEASE \
+            BUILD_LTO=0 BUILD_WERROR=0
       - name: Upload build tree
         uses: actions/upload-artifact@v4
         with:
