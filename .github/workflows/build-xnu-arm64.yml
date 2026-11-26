@@ -31,6 +31,8 @@ jobs:
           sudo mkdir -p "$PRIV/CoreEntitlements/V2" "$SDKROOT/usr/local/include/AppleFeatures"
           printf '#ifndef _COREENTITLEMENTS_V2_KERNEL_H_\n#define _COREENTITLEMENTS_V2_KERNEL_H_\n#include <CoreEntitlements/V2/API.h>\ntypedef struct CEKernelAPI_s CEKernelAPI_t;\n#endif\n' | sudo tee "$PRIV/CoreEntitlements/V2/Kernel.h" >/dev/null
           printf '#ifndef _APPLEFEATURES_H_\n#define _APPLEFEATURES_H_\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/AppleFeatures.h" >/dev/null
+          sudo mkdir -p "$SDKROOT/usr/local/include/os"
+          curl -fsSL https://raw.githubusercontent.com/apple-oss-distributions/libdispatch/main/os/firehose_buffer_private.h | sudo tee "$SDKROOT/usr/local/include/os/firehose_buffer_private.h" >/dev/null
           printf '#ifndef _APPLEFEATURES_APPLEFEATURES_H_\n#define _APPLEFEATURES_APPLEFEATURES_H_\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/AppleFeatures/AppleFeatures.h" >/dev/null
       - name: Clone XNU 12377.1.9
         run: git clone --depth 1 --branch xnu-12377.1.9 https://github.com/apple-oss-distributions/xnu.git xnu
