@@ -27,6 +27,8 @@ jobs:
           PL
           sudo chmod 755 "$SDKROOT/usr/local/libexec/availability.pl"
           sudo mkdir -p "$SDKROOT/usr/local/include/kernel"
+          sudo mkdir -p "$SDKROOT/usr/local/include/iBoot"
+          printf '#ifndef _IBOOT_BOOT_ARGS_ABI_H_\n#define _IBOOT_BOOT_ARGS_ABI_H_\n#define IBOOT_MAX_ENV_VAR_DATA_SIZE 1024\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/iBoot/boot_args_abi.h" >/dev/null
           sudo mkdir -p "$SDKROOT/usr/local/include"
           sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/AppleFeatures"
           sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/platform"
