@@ -14,11 +14,18 @@ jobs:
       - name: Patch SDK availability.pl
         run: |
           SDKROOT=$(xcrun --show-sdk-path)
-          AVAIL=$(find /Applications/Xcode_16.4.app -name availability.pl -type f | head -1)
           echo "SDKROOT=$SDKROOT"
-          echo "availability.pl=$AVAIL"
           sudo mkdir -p "$SDKROOT/usr/local/libexec"
-          sudo ln -sf "$AVAIL" "$SDKROOT/usr/local/libexec/availability.pl"
+          sudo tee "$SDKROOT/usr/local/libexec/availability.pl" >/dev/null <<'PL'
+          #!/bin/bash
+          case "$1" in
+            --ios)
+              for v in 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 15.5 16.0 17.0 18.0 26.0; do echo "$v"; done ;;
+            --macosx)
+              for v in 10.0 10.5 10.10 10.15 11.0 12.0 13.0 14.0 15.0 15.5 26.0; do echo "$v"; done ;;
+          esac
+          PL
+          sudo chmod 755 "$SDKROOT/usr/local/libexec/availability.pl"
 
       - name: Build ARM64 RELEASE
         run: |
