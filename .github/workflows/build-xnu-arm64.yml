@@ -31,6 +31,13 @@ jobs:
           sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/AppleFeatures"
           sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/platform"
 
+      - name: Probe KDK
+        run: |
+          echo "== KDK dirs =="
+          ls -la /Library/Developer/KDKs 2>/dev/null || true
+          echo "== boot_args_abi.h =="
+          find /Library/Developer /Applications/Xcode_16.4.app -name boot_args_abi.h 2>/dev/null | head -10
+
       - name: Build ARM64 RELEASE
         run: |
           cd xnu
