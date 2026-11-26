@@ -14,7 +14,8 @@ jobs:
       - name: Build ARM64 RELEASE
         run: |
           cd xnu
-          make -j"$(sysctl -n hw.ncpu)" \
+          RC_DARWIN_KERNEL_VERSION=12377.1.9 \
+            make -j"$(sysctl -n hw.ncpu)" \
             ARCH_CONFIGS=ARM64 KERNEL_CONFIGS=RELEASE BUILD_LTO=0
       - name: Upload build tree
         uses: actions/upload-artifact@v4
