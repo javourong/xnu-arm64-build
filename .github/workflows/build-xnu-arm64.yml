@@ -26,6 +26,10 @@ jobs:
           esac
           PL
           sudo chmod 755 "$SDKROOT/usr/local/libexec/availability.pl"
+          sudo mkdir -p "$SDKROOT/usr/local/include/kernel"
+          sudo mkdir -p "$SDKROOT/usr/local/include"
+          sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/AppleFeatures"
+          sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/platform"
 
       - name: Build ARM64 RELEASE
         run: |
