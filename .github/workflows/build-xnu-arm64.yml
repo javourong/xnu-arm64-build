@@ -44,7 +44,7 @@ jobs:
           git clone --depth 1 https://github.com/apple-oss-distributions/libdispatch.git libdispatch
           SDKROOT=$(xcrun --show-sdk-path)
           sudo mkdir -p "$SDKROOT/usr/local/include/os"
-          sudo cp ../xnu/libkern/os/atomic_private*.h "$SDKROOT/usr/local/include/os/"
+          sudo cp xnu/libkern/os/atomic_private*.h "$SDKROOT/usr/local/include/os/"
           cd libdispatch
           xcodebuild install -target libfirehose_kernel -sdk macosx \
             ARCHS="arm64e" VALID_ARCHS="arm64e" \
