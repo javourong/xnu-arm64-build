@@ -28,6 +28,8 @@ jobs:
           sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A"
           sudo rm -rf "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders"
           sudo ln -sfn "$PRIV" "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders"
+          sudo mkdir -p "$SDKROOT/usr/local/lib"
+          sudo ln -sfn "$KDK/usr/local/lib/kernel" "$SDKROOT/usr/local/lib/kernel"
           sudo mkdir -p "$PRIV/CoreEntitlements/V2" "$SDKROOT/usr/local/include/AppleFeatures"
           printf '#ifndef _COREENTITLEMENTS_V2_KERNEL_H_\n#define _COREENTITLEMENTS_V2_KERNEL_H_\n#include <CoreEntitlements/V2/API.h>\ntypedef struct CEKernelAPI_s CEKernelAPI_t;\n#endif\n' | sudo tee "$PRIV/CoreEntitlements/V2/Kernel.h" >/dev/null
           printf '#ifndef _APPLEFEATURES_H_\n#define _APPLEFEATURES_H_\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/AppleFeatures.h" >/dev/null
