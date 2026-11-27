@@ -59,14 +59,14 @@ jobs:
         run: |
           cd xnu
           make -j"$(sysctl -n hw.ncpu)" \
-            ARCH_CONFIGS=ARM64 KERNEL_CONFIGS=RELEASE \
+            ARCH_CONFIGS=ARM64 KERNEL_CONFIGS=RELEASE MACHINE_CONFIGS=T8122 \
             BUILD_LTO=0 BUILD_WERROR=0
       - name: Upload build tree
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xnu-arm64-objects
+          name: xnu-arm64-t8122-objects
           path: |
-            xnu/BUILD/obj/RELEASE_ARM64_VMAPPLE
-            xnu/BUILD/RELEASE/ARM64
+            xnu/BUILD/obj/RELEASE_ARM64_T8122
+            xnu/BUILD/RELEASE/ARM64/T8122
           if-no-files-found: warn
