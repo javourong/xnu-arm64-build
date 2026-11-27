@@ -36,6 +36,20 @@ jobs:
           sudo mkdir -p "$SDKROOT/usr/local/include/os"
           { printf '#ifndef OS_FIREHOSE_SPI\n#define OS_FIREHOSE_SPI 1\n#endif\n'; curl -fsSL https://raw.githubusercontent.com/apple-oss-distributions/libdispatch/main/os/firehose_buffer_private.h; } | sudo tee "$SDKROOT/usr/local/include/os/firehose_buffer_private.h" >/dev/null
           printf '#ifndef _APPLEFEATURES_APPLEFEATURES_H_\n#define _APPLEFEATURES_APPLEFEATURES_H_\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/AppleFeatures/AppleFeatures.h" >/dev/null
+      - name: Build libfirehose_kernel
+        run: |
+          set -eux
+          git clone --depth 1 https://github.com/apple-oss-distributions/libdispatch.git libdispatch
+          cd libdispatch
+          xcodebuild install -target libfirehose_kernel -sdk macosx \
+            ARCHS="arm64e" VALID_ARCHS="arm64e" \
+            DSTROOT="$PWD/dst" OBJROOT="$PWD/obj" SYMROOT="$PWD/sym"
+          SRC=$(find "$PWD/dst" -name '*firehose_kernel.a' | head -1)
+          echo "built $SRC"
+          SDKROOT=$(xcrun --show-sdk-path)
+          sudo mkdir -p "$SDKROOT/usr/local/lib/kernel"
+          sudo cp "$SRC" "$SDKROOT/usr/local/lib/kernel/libfirehose_kernel.a"
+          ls -la "$SDKROOT/usr/local/lib/kernel/"
       - name: Clone XNU 12377.1.9
         run: git clone --depth 1 --branch xnu-12377.1.9 https://github.com/apple-oss-distributions/xnu.git xnu
       - name: Patch SDK availability.pl
