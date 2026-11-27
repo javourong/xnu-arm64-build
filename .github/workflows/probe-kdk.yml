@@ -17,6 +17,8 @@ jobs:
           find "$KDK" -maxdepth 5 -type d | head -40
           echo "== headers =="
           find "$KDK" -name 'boot_args_abi.h' -o -name 'Kernel.h' -o -name 'AppleFeatures*' | head -30
+          echo "== kernel libs =="
+          find "$KDK/usr/local/lib/kernel" -maxdepth 2 -type f -print | head -40
           echo "== top-level PRIV =="
           ls "$KDK/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders" | head -40
           echo "== SDK local include =="
