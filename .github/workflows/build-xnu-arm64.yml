@@ -74,6 +74,12 @@ jobs:
           printf '#ifndef _IBOOT_BOOT_ARGS_ABI_H_\n#define _IBOOT_BOOT_ARGS_ABI_H_\n#define IBOOT_MAX_ENV_VAR_DATA_SIZE 1024\n#endif\n' \
             > "$FAKEROOT/usr/local/include/iBoot/boot_args_abi.h"
 
+          # VMAPPLE excludes the arm64 assembly cache/context routines, but the
+          # generic kernel still calls them. Force the two files back in.
+          perl -pi -e 's#^(osfmk/arm64/(?:caches_asm|cswitch)\.s)\t.*#$1 standard#' \
+            xnu/osfmk/conf/files.arm64
+          grep -nE 'caches_asm|cswitch' xnu/osfmk/conf/files.arm64 | head
+
           # libsyscall builds its own SDK-independent headers.
           perl -0pi -e 's/#include[^\n]*BSD\.xcconfig[^\n]*\n//g' xnu/libsyscall/Libsyscall.xcconfig || true
 
