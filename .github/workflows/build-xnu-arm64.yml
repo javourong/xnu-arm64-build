@@ -48,6 +48,7 @@ jobs:
           cd libdispatch
           xcodebuild install -target libfirehose_kernel -sdk macosx \
             ARCHS="arm64e" VALID_ARCHS="arm64e" \
+            OTHER_CFLAGS="-I$SDKROOT/usr/local/include" \
             DSTROOT="$PWD/dst" OBJROOT="$PWD/obj" SYMROOT="$PWD/sym"
           SRC=$(find "$PWD/dst" -name '*firehose_kernel.a' | head -1)
           echo "built $SRC"
