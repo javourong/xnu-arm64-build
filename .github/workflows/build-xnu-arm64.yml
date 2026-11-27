@@ -93,8 +93,7 @@ jobs:
           mkdir -p "$FAKEROOT/usr/local/include/os"
           { printf '#ifndef OS_FIREHOSE_SPI\n#define OS_FIREHOSE_SPI 1\n#endif\n'; cat libdispatch/os/firehose_buffer_private.h; } \
             > "$FAKEROOT/usr/local/include/os/firehose_buffer_private.h"
-          ln -sfn "$KDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/platform/firehose" \
-            "$FAKEROOT/usr/local/include/firehose"
+          mkdir -p "$FAKEROOT/usr/local/include/firehose"
           printf '#ifndef _APPLEFEATURES_APPLEFEATURES_H_\n#define _APPLEFEATURES_APPLEFEATURES_H_\n#endif\n' \
             > "$FAKEROOT/usr/local/include/AppleFeatures.h"
           mkdir -p "$FAKEROOT/usr/local/include/AppleFeatures"
