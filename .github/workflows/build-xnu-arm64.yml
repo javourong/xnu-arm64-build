@@ -1,49 +1,67 @@
 name: build-xnu-arm64
 on: workflow_dispatch
+
 jobs:
   build:
     runs-on: macos-15-intel
+    timeout-minutes: 300
+    env:
+      XNU_TAG: xnu-12377.1.9
+      LIBDISPATCH_TAG: libdispatch-1542.0.4
+      AVAILABILITY_TAG: AvailabilityVersions-155
+      LIBPLATFORM_TAG: libplatform-359.1.2
     steps:
       - uses: actions/checkout@v4
+
       - name: Show toolchain
         run: |
           xcodebuild -version
           xcrun --show-sdk-path
           sw_vers
+
       - name: Install Apple KDK 15.5 (24F74)
         run: |
           set -eux
           curl -L --retry 3 -o /tmp/kdk.dmg \
             https://github.com/dortania/KdkSupportPkg/releases/download/24F74/Kernel_Debug_Kit_15.5_build_24F74.dmg
           hdiutil attach /tmp/kdk.dmg -mountpoint /Volumes/KDK -nobrowse
-          ls -la /Volumes/KDK
           sudo installer -pkg /Volumes/KDK/*.pkg -target /
           hdiutil detach /Volumes/KDK
-          ls -la /Library/Developer/KDKs
           KDK=$(ls -d /Library/Developer/KDKs/*.kdk | head -1)
           echo "KDKROOT=$KDK" >> "$GITHUB_ENV"
           PRIV="$KDK/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders"
-          sudo ln -sfn "$PRIV/platform/CoreEntitlements" "$PRIV/CoreEntitlements"
-          SDKROOT=$(xcrun --show-sdk-path)
-          sudo mkdir -p "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A"
-          sudo rm -rf "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders"
-          sudo ln -sfn "$PRIV" "$SDKROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders"
-          sudo mkdir -p "$SDKROOT/usr/local/lib"
-          sudo ln -sfn "$KDK/usr/local/lib/kernel" "$SDKROOT/usr/local/lib/kernel"
-          sudo mkdir -p "$PRIV/CoreEntitlements/V2" "$SDKROOT/usr/local/include/AppleFeatures"
+          sudo ln -sfn "$PRIV/platform/CoreEntitlements" "$PRIV/CoreEntitlements" || true
+          sudo ln -sfn "$PRIV/platform/AppleFeatures" "$PRIV/AppleFeatures" || true
+          sudo ln -sfn "$PRIV/platform/TrustCache" "$PRIV/TrustCache" || true
+          sudo mkdir -p "$PRIV/CoreEntitlements/V2"
           printf '#ifndef _COREENTITLEMENTS_V2_KERNEL_H_\n#define _COREENTITLEMENTS_V2_KERNEL_H_\n#include <CoreEntitlements/V2/API.h>\ntypedef struct CEKernelAPI_s CEKernelAPI_t;\n#endif\n' | sudo tee "$PRIV/CoreEntitlements/V2/Kernel.h" >/dev/null
-          printf '#ifndef _APPLEFEATURES_H_\n#define _APPLEFEATURES_H_\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/AppleFeatures.h" >/dev/null
-          sudo mkdir -p "$SDKROOT/usr/local/include/os"
-          { printf '#ifndef OS_FIREHOSE_SPI\n#define OS_FIREHOSE_SPI 1\n#endif\n'; curl -fsSL https://raw.githubusercontent.com/apple-oss-distributions/libdispatch/main/os/firehose_buffer_private.h; } | sudo tee "$SDKROOT/usr/local/include/os/firehose_buffer_private.h" >/dev/null
-          printf '#ifndef _APPLEFEATURES_APPLEFEATURES_H_\n#define _APPLEFEATURES_APPLEFEATURES_H_\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/AppleFeatures/AppleFeatures.h" >/dev/null
-      - name: Clone XNU 12377.1.9
-        run: git clone --depth 1 --branch xnu-12377.1.9 https://github.com/apple-oss-distributions/xnu.git xnu
-      - name: Patch SDK availability.pl
+          printf '#ifndef _APPLEFEATURES_H_\n#define _APPLEFEATURES_H_\n#endif\n' | sudo tee "$PRIV/AppleFeatures.h" >/dev/null
+          ls -la "$KDK/usr/local/lib/kernel"
+
+      - name: Clone exact macOS 26 dependency tags
         run: |
+          set -eux
+          git clone --depth 1 --branch "$XNU_TAG" https://github.com/apple-oss-distributions/xnu.git xnu
+          git clone --depth 1 --branch "$LIBDISPATCH_TAG" https://github.com/apple-oss-distributions/libdispatch.git libdispatch
+          git clone --depth 1 --branch "$AVAILABILITY_TAG" https://github.com/apple-oss-distributions/AvailabilityVersions.git AvailabilityVersions
+          git clone --depth 1 --branch "$LIBPLATFORM_TAG" https://github.com/apple-oss-distributions/libplatform.git libplatform
+
+      - name: Prepare fakeroot SDK and patch build files
+        run: |
+          set -eux
           SDKROOT=$(xcrun --show-sdk-path)
-          echo "SDKROOT=$SDKROOT"
-          sudo mkdir -p "$SDKROOT/usr/local/libexec"
-          sudo tee "$SDKROOT/usr/local/libexec/availability.pl" >/dev/null <<'PL'
+          FAKEROOT="$GITHUB_WORKSPACE/fakeroot"
+          OBJROOT="$GITHUB_WORKSPACE/build/obj"
+          SYMROOT="$GITHUB_WORKSPACE/build/sym"
+          mkdir -p "$FAKEROOT" "$OBJROOT" "$SYMROOT"
+          echo "SDKROOT=$SDKROOT" >> "$GITHUB_ENV"
+          echo "FAKEROOT=$FAKEROOT" >> "$GITHUB_ENV"
+          echo "OBJROOT=$OBJROOT" >> "$GITHUB_ENV"
+          echo "SYMROOT=$SYMROOT" >> "$GITHUB_ENV"
+
+          # XNU's build expects the driverkit-style availability tool and iBoot ABI header.
+          mkdir -p "$FAKEROOT/usr/local/libexec" "$FAKEROOT/usr/local/include/iBoot"
+          cat > "$FAKEROOT/usr/local/libexec/availability.pl" <<'PL'
           #!/bin/bash
           case "$1" in
             --ios)
@@ -52,21 +70,106 @@ jobs:
               for v in 10.0 10.5 10.10 10.15 11.0 12.0 13.0 14.0 15.0 15.5 26.0; do echo "$v"; done ;;
           esac
           PL
-          sudo chmod 755 "$SDKROOT/usr/local/libexec/availability.pl"
-          sudo mkdir -p "$SDKROOT/usr/local/include/iBoot"
-          printf '#ifndef _IBOOT_BOOT_ARGS_ABI_H_\n#define _IBOOT_BOOT_ARGS_ABI_H_\n#define IBOOT_MAX_ENV_VAR_DATA_SIZE 1024\n#endif\n' | sudo tee "$SDKROOT/usr/local/include/iBoot/boot_args_abi.h" >/dev/null
-      - name: Build ARM64 RELEASE
+          chmod 755 "$FAKEROOT/usr/local/libexec/availability.pl"
+          printf '#ifndef _IBOOT_BOOT_ARGS_ABI_H_\n#define _IBOOT_BOOT_ARGS_ABI_H_\n#define IBOOT_MAX_ENV_VAR_DATA_SIZE 1024\n#endif\n' \
+            > "$FAKEROOT/usr/local/include/iBoot/boot_args_abi.h"
+
+          # libsyscall builds its own SDK-independent headers.
+          perl -0pi -e 's/#include[^\n]*BSD\.xcconfig[^\n]*\n//g' xnu/libsyscall/Libsyscall.xcconfig || true
+
+          # make_symbol_aliasing.sh must find our availability.pl, not whatever Xcode ships.
+          perl -0pi -e "s#^AVAILABILITY_PL=.*#AVAILABILITY_PL=$FAKEROOT/usr/local/libexec/availability.pl#m" \
+            xnu/bsd/sys/make_symbol_aliasing.sh || true
+          sudo mkdir -p "$SDKROOT/usr/local/libexec"
+          sudo cp "$FAKEROOT/usr/local/libexec/availability.pl" "$SDKROOT/usr/local/libexec/availability.pl"
+
+          # libfirehose needs the libdispatch SPI header; put it where the patched xcconfig looks.
+          mkdir -p "$FAKEROOT/usr/local/include/os"
+          { printf '#ifndef OS_FIREHOSE_SPI\n#define OS_FIREHOSE_SPI 1\n#endif\n'; cat libdispatch/os/firehose_buffer_private.h; } \
+            > "$FAKEROOT/usr/local/include/os/firehose_buffer_private.h"
+          printf '#ifndef _APPLEFEATURES_APPLEFEATURES_H_\n#define _APPLEFEATURES_APPLEFEATURES_H_\n#endif\n' \
+            > "$FAKEROOT/usr/local/include/AppleFeatures.h"
+          mkdir -p "$FAKEROOT/usr/local/include/AppleFeatures"
+          cp "$FAKEROOT/usr/local/include/AppleFeatures.h" "$FAKEROOT/usr/local/include/AppleFeatures/AppleFeatures.h"
+
+          # Tell XNU and libdispatch to use fakeroot headers/libs instead of /.
+          perl -pi -e 'if (/^LDFLAGS_KERNEL_SDK/ || /^INCFLAGS_SDK/) { s/\$\(SDKROOT\)/\$(FAKEROOT)/g }' \
+            xnu/makedefs/MakeInc.def
+          perl -0pi -e 's#\$\(SDKROOT\)/System/Library/Frameworks/Kernel\.framework/PrivateHeaders#\$(FAKEROOT)/System/Library/Frameworks/Kernel.framework/PrivateHeaders#g; s#\$\(SDKROOT\)/usr/local/include#\$(FAKEROOT)/usr/local/include#g' \
+            libdispatch/xcodeconfig/libfirehose_kernel.xcconfig
+
+          grep -nE 'LDFLAGS_KERNEL_SDK|INCFLAGS_SDK' xnu/makedefs/MakeInc.def | head
+          grep -n 'HEADER_SEARCH_PATHS' libdispatch/xcodeconfig/libfirehose_kernel.xcconfig | head
+
+      - name: Build AvailabilityVersions
         run: |
+          set -eux
+          cd AvailabilityVersions
+          make install OBJROOT="$OBJROOT" SYMROOT="$SYMROOT" DSTROOT="$FAKEROOT"
+
+      - name: Install XNU headers first (the missing step)
+        run: |
+          set -eux
           cd xnu
-          make -j"$(sysctl -n hw.ncpu)" \
-            ARCH_CONFIGS=ARM64 KERNEL_CONFIGS=RELEASE MACHINE_CONFIGS=T8122 \
-            BUILD_LTO=0 BUILD_WERROR=0
-      - name: Upload build tree
+          make -j"$(sysctl -n hw.ncpu)" installhdrs \
+            SDKROOT=macosx TARGET_CONFIGS="RELEASE ARM64 VMAPPLE" \
+            OBJROOT="$OBJROOT" SYMROOT="$SYMROOT" DSTROOT="$FAKEROOT" FAKEROOT="$FAKEROOT" \
+            KDKROOT="$KDKROOT"
+          ls -la "$FAKEROOT/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders" | head
+
+      - name: Install libsyscall headers
+        run: |
+          set -eux
+          cd xnu/libsyscall
+          xcodebuild installhdrs -sdk macosx \
+            OBJROOT="$OBJROOT" SYMROOT="$SYMROOT" DSTROOT="$FAKEROOT" FAKEROOT="$FAKEROOT" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Install libplatform headers
+        run: |
+          set -eux
+          ditto libplatform/include "$FAKEROOT/usr/local/include"
+          ditto libplatform/private "$FAKEROOT/usr/local/include"
+
+      - name: Build libfirehose_kernel (arm64e)
+        run: |
+          set -eux
+          cd libdispatch
+          xcodebuild install -target libfirehose_kernel -sdk macosx \
+            ARCHS="arm64e" VALID_ARCHS="arm64e" \
+            OBJROOT="$OBJROOT" SYMROOT="$SYMROOT" DSTROOT="$FAKEROOT" FAKEROOT="$FAKEROOT" \
+            CODE_SIGNING_ALLOWED=NO
+          ls -la "$FAKEROOT/usr/local/lib/kernel"
+          if [ -f "$FAKEROOT/usr/local/lib/kernel/liblibfirehose_kernel.a" ]; then
+            mv "$FAKEROOT/usr/local/lib/kernel/liblibfirehose_kernel.a" \
+               "$FAKEROOT/usr/local/lib/kernel/libfirehose_kernel.a"
+          fi
+          lipo -info "$FAKEROOT/usr/local/lib/kernel/libfirehose_kernel.a"
+
+      - name: Build VMAPPLE ARM64 RELEASE
+        run: |
+          set -eux
+          cd xnu
+          make -j"$(sysctl -n hw.ncpu)" install \
+            SDKROOT=macosx TARGET_CONFIGS="RELEASE ARM64 VMAPPLE" \
+            BUILD_WERROR=0 BUILD_LTO=0 LOGCOLORS=y \
+            SRCROOT="$PWD" OBJROOT="$OBJROOT" SYMROOT="$SYMROOT" \
+            DSTROOT="$FAKEROOT" FAKEROOT="$FAKEROOT" KDKROOT="$KDKROOT"
+
+      - name: Show result
+        if: always()
+        run: |
+          find xnu/BUILD -name '*.o' 2>/dev/null | wc -l || true
+          find xnu/BUILD -maxdepth 5 \( -name 'kernel*' -o -name '*.dylib' \) 2>/dev/null | head -20 || true
+          find "$FAKEROOT" -name 'kernel*' 2>/dev/null | head -20 || true
+
+      - name: Upload objects and kernel
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xnu-arm64-t8122-objects
+          name: xnu-arm64-vmapple-full
           path: |
-            xnu/BUILD/obj/RELEASE_ARM64_T8122
-            xnu/BUILD/RELEASE/ARM64/T8122
+            xnu/BUILD/obj/RELEASE_ARM64_VMAPPLE
+            xnu/BUILD/RELEASE/ARM64/VMAPPLE
+            fakeroot/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders
           if-no-files-found: warn
