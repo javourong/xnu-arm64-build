@@ -97,7 +97,27 @@ jobs:
           }
           C
           printf 'osfmk/arm64/caches_stub.c standard\n' >> xnu/osfmk/conf/files.arm64
-          grep -nE 'caches_asm|caches_stub|cswitch|locore' xnu/osfmk/conf/files.arm64 | head
+
+          # VMAPPLE's public kernel config does not provide the reset vector
+          # or the C++ IOUnifiedAddressTranslator class. Provide link symbols
+          # for the former; the latter is removed from all-kpi.exp after the
+          # first link attempt.
+          cat > xnu/osfmk/arm64/vmapple_link_stubs.c <<'C'
+          #include <mach/vm_types.h>
+
+          char LowResetVectorBase[4096] = { 0 };
+          char ResetHandlerData[4096] = { 0 };
+
+          void
+          __start(void)
+          {
+              for (;;) {
+                  __asm__ __volatile__("wfe");
+              }
+          }
+          C
+          printf 'osfmk/arm64/vmapple_link_stubs.c standard\n' >> xnu/osfmk/conf/files.arm64
+          grep -nE 'caches_stub|vmapple_link_stubs' xnu/osfmk/conf/files.arm64
 
           # libsyscall builds its own SDK-independent headers.
           perl -0pi -e 's/#include[^\n]*BSD\.xcconfig[^\n]*\n//g' xnu/libsyscall/Libsyscall.xcconfig || true
@@ -176,11 +196,28 @@ jobs:
         run: |
           set -eux
           cd xnu
-          make -j"$(sysctl -n hw.ncpu)" install \
-            SDKROOT=macosx TARGET_CONFIGS="RELEASE ARM64 VMAPPLE" \
-            BUILD_WERROR=0 BUILD_LTO=0 LOGCOLORS=y \
-            SRCROOT="$PWD" OBJROOT="$OBJROOT" SYMROOT="$SYMROOT" \
-            DSTROOT="$FAKEROOT" FAKEROOT="$FAKEROOT" KDKROOT="$KDKROOT"
+          xnu_make() {
+            make -j"$(sysctl -n hw.ncpu)" install \
+              SDKROOT=macosx TARGET_CONFIGS="RELEASE ARM64 VMAPPLE" \
+              BUILD_WERROR=0 BUILD_LTO=0 LOGCOLORS=y \
+              SRCROOT="$PWD" OBJROOT="$OBJROOT" SYMROOT="$SYMROOT" \
+              DSTROOT="$FAKEROOT" FAKEROOT="$FAKEROOT" KDKROOT="$KDKROOT"
+          }
+
+          # First pass produces all-kpi.exp and everything except the final link.
+          xnu_make || true
+
+          # The public source tree does not build IOUnifiedAddressTranslator for
+          # VMAPPLE, but all-kpi.exp still exports its symbols. Drop just those.
+          EXP="$OBJROOT/RELEASE_ARM64_VMAPPLE/all-kpi.exp"
+          if [ -f "$EXP" ]; then
+            grep -c 'IOUnifiedAddressTranslator' "$EXP" || true
+            sed -i '' '/IOUnifiedAddressTranslator/d' "$EXP"
+            grep -c 'IOUnifiedAddressTranslator' "$EXP" || true
+          fi
+
+          # Second pass relinks with the corrected export list and the stubs.
+          xnu_make
 
       - name: Show result
         if: always()
