@@ -76,7 +76,7 @@ jobs:
 
           # VMAPPLE leaves the arm64 assembly set out of the build, but the
           # generic kernel still calls its cache/context/entry routines.
-          perl -pi -e 's#^(\S+\.s)\t+optional nos_arm_asm#$1 standard#' xnu/osfmk/conf/files.arm64
+          perl -pi -e 's#^(\S+\.s)\t+optional nos_arm_asm$#$1 standard#' xnu/osfmk/conf/files.arm64
           cat > xnu/osfmk/arm64/caches_stub.c <<'C'
           #include <mach/vm_types.h>
           #include <stddef.h>
